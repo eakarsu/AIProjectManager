@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
-async function callOpenRouter(prompt, systemPrompt) {
+// Model
+const MODEL = process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
+
+async function callOpenRouter(prompt, systemPrompt, opts = {}) {
   const response = await fetch(process.env.OPENROUTER_BASE_URL + '/chat/completions', {
     method: 'POST',
     headers: {
@@ -11,12 +14,12 @@ async function callOpenRouter(prompt, systemPrompt) {
       'X-Title': 'AI Project Manager',
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-haiku-4.5',
+      model: MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
       ],
-      max_tokens: 2000,
+      max_tokens: opts.max_tokens || 2000,
     }),
   });
 
@@ -29,37 +32,97 @@ async function callOpenRouter(prompt, systemPrompt) {
   return data.choices[0].message.content;
 }
 
+// 3-strategy JSON parser
+function parseAIJson(text) {
+  // Strategy 1: direct parse
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  // Strategy 2: extract from markdown code block
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim());
+    } catch {}
+  }
+
+  // Strategy 3: find first { or [ and parse from there
+  const jsonStart = text.search(/[{[]/);
+  if (jsonStart !== -1) {
+    const jsonEnd = Math.max(text.lastIndexOf('}'), text.lastIndexOf(']'));
+    if (jsonEnd !== -1) {
+      try {
+        return JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+      } catch {}
+    }
+  }
+
+  return null;
+}
+
+// Persist to ai_results table
+async function persistAiResult(pool, { user_id, endpoint, project_id, task_id, result, result_json }) {
+  try {
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS ai_results (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        endpoint VARCHAR(100),
+        project_id INTEGER,
+        task_id INTEGER,
+        result TEXT,
+        result_json JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      )`
+    );
+    await pool.query(
+      `INSERT INTO ai_results (user_id, endpoint, project_id, task_id, result, result_json)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [user_id, endpoint, project_id || null, task_id || null, result, result_json ? JSON.stringify(result_json) : null]
+    );
+  } catch (err) {
+    console.error('Failed to persist AI result:', err.message);
+  }
+}
+
 // AI Task Breakdown
 router.post('/task-breakdown', async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const { title, description, task_id } = req.body;
+    const pool = req.app.locals.pool;
+
     const systemPrompt = `You are an expert project manager AI. Break down tasks into actionable subtasks.
-    Return your response in this exact format:
-
-    **Task Analysis**
-    [Brief analysis of the task complexity and scope]
-
-    **Subtasks**
-    1. [Subtask title] - [Estimated hours] hours
-       - [Detail about what needs to be done]
-    2. [Continue numbering...]
-
-    **Estimated Total Effort**: [X] hours
-    **Recommended Priority**: [Critical/High/Medium/Low]
-    **Suggested Story Points**: [1-13]
-    **Dependencies**: [List any dependencies or prerequisites]
-    **Risks**: [Any risks associated with this task]`;
+Return ONLY valid JSON in this exact structure:
+{
+  "tasks": [
+    {
+      "title": "subtask title",
+      "description": "what needs to be done",
+      "story_points": 3,
+      "assignee_type": "frontend|backend|fullstack|devops|qa|design",
+      "priority": "critical|high|medium|low",
+      "dependencies": []
+    }
+  ],
+  "total_effort_hours": 20,
+  "recommended_priority": "high",
+  "suggested_story_points": 8,
+  "risks": ["risk description"]
+}`;
 
     const prompt = `Break down this task into detailed subtasks:\n\nTask: ${title}\nDescription: ${description || 'No additional description provided'}`;
     const aiResponse = await callOpenRouter(prompt, systemPrompt);
+    const parsed = parseAIJson(aiResponse);
 
-    // Save to task if task_id provided
-    if (req.body.task_id) {
-      const pool = req.app.locals.pool;
-      await pool.query('UPDATE tasks SET ai_breakdown = $1 WHERE id = $2', [aiResponse, req.body.task_id]);
+    if (task_id) {
+      await pool.query('UPDATE tasks SET ai_breakdown = $1 WHERE id = $2', [aiResponse, task_id]);
     }
 
-    res.json({ result: aiResponse });
+    const userId = req.user?.id;
+    await persistAiResult(pool, { user_id: userId, endpoint: 'task-breakdown', task_id, result: aiResponse, result_json: parsed });
+
+    res.json({ result: aiResponse, parsed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -68,41 +131,41 @@ router.post('/task-breakdown', async (req, res) => {
 // AI Sprint Planning
 router.post('/sprint-planning', async (req, res) => {
   try {
-    const { sprint_name, goal, team_capacity, velocity, backlog_items } = req.body;
+    const { sprint_name, goal, team_capacity, velocity, backlog_items, sprint_id } = req.body;
+    const pool = req.app.locals.pool;
+
     const systemPrompt = `You are an expert Agile coach and sprint planning AI assistant.
-    Provide sprint planning recommendations in this format:
-
-    **Sprint Overview**
-    [Analysis of the sprint goal and capacity]
-
-    **Recommended Task Allocation**
-    | Task | Assignee Suggestion | Story Points | Priority |
-    |------|-------------------|-------------|----------|
-    [Table rows]
-
-    **Velocity Forecast**: [Predicted velocity based on history]
-    **Capacity Utilization**: [Percentage of capacity used]
-    **Sprint Risks**:
-    - [Risk 1]
-    - [Risk 2]
-
-    **Recommendations**:
-    1. [Recommendation 1]
-    2. [Recommendation 2]
-
-    **Success Metrics**:
-    - [Metric 1]
-    - [Metric 2]`;
+Return ONLY valid JSON in this exact structure:
+{
+  "recommended_stories": [
+    {
+      "id": "story-1",
+      "title": "story title",
+      "points": 5,
+      "rationale": "why this story fits the sprint",
+      "priority": "high"
+    }
+  ],
+  "total_points": 40,
+  "sprint_goal": "clear sprint goal statement",
+  "risks": ["potential risk 1", "potential risk 2"],
+  "capacity_utilization": 95,
+  "velocity_forecast": "forecast statement",
+  "recommendations": ["recommendation 1", "recommendation 2"]
+}`;
 
     const prompt = `Plan this sprint:\n\nSprint: ${sprint_name}\nGoal: ${goal}\nTeam Capacity: ${team_capacity || 40} story points\nPrevious Velocity: ${velocity || 'Unknown'}\nBacklog Items: ${backlog_items || 'General backlog items available'}`;
     const aiResponse = await callOpenRouter(prompt, systemPrompt);
+    const parsed = parseAIJson(aiResponse);
 
-    if (req.body.sprint_id) {
-      const pool = req.app.locals.pool;
-      await pool.query('UPDATE sprints SET ai_suggestions = $1 WHERE id = $2', [aiResponse, req.body.sprint_id]);
+    if (sprint_id) {
+      await pool.query('UPDATE sprints SET ai_suggestions = $1 WHERE id = $2', [aiResponse, sprint_id]);
     }
 
-    res.json({ result: aiResponse });
+    const userId = req.user?.id;
+    await persistAiResult(pool, { user_id: userId, endpoint: 'sprint-planning', result: aiResponse, result_json: parsed });
+
+    res.json({ result: aiResponse, parsed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -111,54 +174,91 @@ router.post('/sprint-planning', async (req, res) => {
 // AI Risk Prediction
 router.post('/risk-prediction', async (req, res) => {
   try {
-    const { project_name, project_description, current_risks, team_size, timeline } = req.body;
+    const { project_name, project_description, current_risks, team_size, timeline, risk_id } = req.body;
+    const pool = req.app.locals.pool;
+
     const systemPrompt = `You are an expert risk assessment AI for software projects.
-    Analyze and predict risks in this format:
-
-    **Risk Assessment Summary**
-    [Overall risk level and brief assessment]
-
-    **Identified Risks**
-
-    🔴 **Critical Risks**
-    - [Risk]: Impact [High/Critical], Probability [%]
-      - Mitigation: [Strategy]
-
-    🟡 **Moderate Risks**
-    - [Risk]: Impact [Medium], Probability [%]
-      - Mitigation: [Strategy]
-
-    🟢 **Low Risks**
-    - [Risk]: Impact [Low], Probability [%]
-      - Mitigation: [Strategy]
-
-    **Predicted Issues (Next 30 Days)**:
-    1. [Predicted issue and likelihood]
-
-    **Risk Score**: [1-10]
-    **Recommended Actions**:
-    1. [Action item with priority]
-
-    **Risk Trend**: [Increasing/Stable/Decreasing]`;
+Return ONLY valid JSON in this exact structure:
+{
+  "risks": [
+    {
+      "title": "risk name",
+      "probability": 4,
+      "impact": 5,
+      "score": 20,
+      "mitigation_strategy": "how to mitigate",
+      "timeline": "when this risk could materialize",
+      "category": "technical|resource|financial|strategic|security"
+    }
+  ],
+  "overall_risk_level": "low|medium|high|critical",
+  "risk_score": 7,
+  "risk_trend": "increasing|stable|decreasing",
+  "recommended_actions": ["action 1", "action 2"],
+  "predicted_issues_next_30_days": ["predicted issue 1"]
+}`;
 
     const prompt = `Analyze risks for this project:\n\nProject: ${project_name}\nDescription: ${project_description || 'Software development project'}\nCurrent Known Risks: ${current_risks || 'None specified'}\nTeam Size: ${team_size || 'Not specified'}\nTimeline: ${timeline || 'Not specified'}`;
     const aiResponse = await callOpenRouter(prompt, systemPrompt);
+    const parsed = parseAIJson(aiResponse);
 
-    if (req.body.risk_id) {
-      const pool = req.app.locals.pool;
-      await pool.query('UPDATE risks SET ai_prediction = $1 WHERE id = $2', [aiResponse, req.body.risk_id]);
+    if (risk_id) {
+      await pool.query('UPDATE risks SET ai_prediction = $1 WHERE id = $2', [aiResponse, risk_id]);
     }
 
-    res.json({ result: aiResponse });
+    const userId = req.user?.id;
+    await persistAiResult(pool, { user_id: userId, endpoint: 'risk-prediction', result: aiResponse, result_json: parsed });
+
+    res.json({ result: aiResponse, parsed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// AI Standup Summary
+// AI Standup Summary (enhanced: fetch tasks by team + date)
 router.post('/standup-summary', async (req, res) => {
   try {
-    const { standups, project_name } = req.body;
+    const { standups, project_name, team_ids, date } = req.body;
+    const pool = req.app.locals.pool;
+
+    let contextData = standups || '';
+
+    // If team_ids provided, fetch task context from DB
+    if (team_ids && Array.isArray(team_ids) && team_ids.length > 0) {
+      const targetDate = date || new Date().toISOString().split('T')[0];
+      const yesterday = new Date(new Date(targetDate).getTime() - 86400000).toISOString().split('T')[0];
+
+      const [completedYesterday, todayTasks, standupRows] = await Promise.all([
+        pool.query(
+          `SELECT t.title, u.name as assignee FROM tasks t LEFT JOIN users u ON t.assignee_id=u.id
+           WHERE t.assignee_id = ANY($1) AND t.status='done' AND DATE(t.due_date)=$2`,
+          [team_ids, yesterday]
+        ),
+        pool.query(
+          `SELECT t.title, u.name as assignee, t.status FROM tasks t LEFT JOIN users u ON t.assignee_id=u.id
+           WHERE t.assignee_id = ANY($1) AND t.status!='done' ORDER BY t.priority DESC LIMIT 20`,
+          [team_ids]
+        ),
+        pool.query(
+          `SELECT s.yesterday, s.today, s.blockers, s.mood, u.name FROM standups s JOIN users u ON s.user_id=u.id
+           WHERE s.user_id = ANY($1) AND s.standup_date=$2`,
+          [team_ids, targetDate]
+        ),
+      ]);
+
+      if (standupRows.rows.length > 0) {
+        contextData = standupRows.rows.map(s =>
+          `${s.name}: Yesterday: ${s.yesterday || 'N/A'} | Today: ${s.today || 'N/A'} | Blockers: ${s.blockers || 'none'} | Mood: ${s.mood}`
+        ).join('\n');
+      }
+      if (completedYesterday.rows.length > 0) {
+        contextData += `\n\nCompleted yesterday: ${completedYesterday.rows.map(t=>`${t.title} (${t.assignee})`).join(', ')}`;
+      }
+      if (todayTasks.rows.length > 0) {
+        contextData += `\n\nToday's tasks in progress: ${todayTasks.rows.slice(0,10).map(t=>`${t.title} (${t.assignee})`).join(', ')}`;
+      }
+    }
+
     const systemPrompt = `You are an expert Scrum Master AI that creates comprehensive standup summaries.
     Generate a team standup summary in this format:
 
@@ -174,7 +274,6 @@ router.post('/standup-summary', async (req, res) => {
 
     **In Progress** 🔄
     - [Work item 1] - [Owner]
-    - [Work item 2] - [Owner]
 
     **Blockers & Concerns** ⚠️
     - [Blocker 1] - Suggested Resolution: [suggestion]
@@ -188,8 +287,11 @@ router.post('/standup-summary', async (req, res) => {
     **Tomorrow's Focus**:
     - [Priority item 1]`;
 
-    const prompt = `Generate a standup summary:\n\nProject: ${project_name || 'Team Project'}\nStandup Updates:\n${standups || 'No standup data provided'}`;
+    const prompt = `Generate a standup summary:\n\nProject: ${project_name || 'Team Project'}\nDate: ${date || new Date().toISOString().split('T')[0]}\nStandup Updates:\n${contextData || 'No standup data provided'}`;
     const aiResponse = await callOpenRouter(prompt, systemPrompt);
+
+    const userId = req.user?.id;
+    await persistAiResult(pool, { user_id: userId, endpoint: 'standup-summary', result: aiResponse, result_json: null });
 
     res.json({ result: aiResponse });
   } catch (err) {
@@ -233,7 +335,9 @@ router.post('/project-insights', async (req, res) => {
 // AI Retrospective Analysis
 router.post('/retrospective-analysis', async (req, res) => {
   try {
-    const { sprint_name, went_well, to_improve, action_items, mood_score } = req.body;
+    const { sprint_name, went_well, to_improve, action_items, mood_score, retro_id } = req.body;
+    const pool = req.app.locals.pool;
+
     const systemPrompt = `You are an expert Agile coach specializing in sprint retrospectives.
     Analyze the retrospective data and provide insights in this format:
 
@@ -243,11 +347,9 @@ router.post('/retrospective-analysis', async (req, res) => {
 
     **Positive Patterns** ✅
     - [Pattern identified from what went well]
-    - [Strength to continue leveraging]
 
     **Areas of Concern** ⚠️
     - [Issue identified with suggested improvement]
-    - [Recurring problem and root cause analysis]
 
     **Action Item Assessment**:
     | Action Item | Priority | Expected Impact | Owner Suggestion |
@@ -266,9 +368,8 @@ router.post('/retrospective-analysis', async (req, res) => {
     const prompt = `Analyze this sprint retrospective:\n\nSprint: ${sprint_name}\nWhat Went Well: ${went_well}\nWhat To Improve: ${to_improve}\nAction Items: ${action_items}\nTeam Mood Score: ${mood_score}/5`;
     const aiResponse = await callOpenRouter(prompt, systemPrompt);
 
-    if (req.body.retro_id) {
-      const pool = req.app.locals.pool;
-      await pool.query('UPDATE retrospectives SET ai_analysis = $1 WHERE id = $2', [aiResponse, req.body.retro_id]);
+    if (retro_id) {
+      await pool.query('UPDATE retrospectives SET ai_analysis = $1 WHERE id = $2', [aiResponse, retro_id]);
     }
 
     res.json({ result: aiResponse });
@@ -293,17 +394,8 @@ router.post('/workload-optimization', async (req, res) => {
     |-------------|-------------|----------|--------|
     [Table rows]
 
-    **Overloaded Members** 🔴
-    - [Member]: [Current tasks] tasks, [Suggestion to rebalance]
-
-    **Underutilized Members** 🟢
-    - [Member]: [Available capacity], [Tasks they could take on]
-
     **Recommended Reassignments**:
     1. Move [task] from [person A] to [person B] - Reason: [why]
-
-    **Bottleneck Detection**:
-    - [Identified bottleneck and impact]
 
     **Optimization Score**: [1-100]
     **Projected Improvement**: [X]% better throughput with recommended changes`;
@@ -329,7 +421,6 @@ router.post('/document-summary', async (req, res) => {
     **Key Points**:
     1. [Main point 1]
     2. [Main point 2]
-    3. [Main point 3]
 
     **Technical Details**: [Brief technical summary]
     **Action Items**: [Any action items found in the document]
@@ -340,6 +431,55 @@ router.post('/document-summary', async (req, res) => {
     const aiResponse = await callOpenRouter(prompt, systemPrompt);
 
     res.json({ result: aiResponse });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/ai/history - paginated ai_results for logged-in user
+router.get('/history', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    // Ensure table exists
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS ai_results (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        endpoint VARCHAR(100),
+        project_id INTEGER,
+        task_id INTEGER,
+        result TEXT,
+        result_json JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      )`
+    );
+
+    const result = await pool.query(
+      `SELECT id, endpoint, project_id, task_id, result_json, created_at
+       FROM ai_results
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM ai_results WHERE user_id = $1',
+      [userId]
+    );
+
+    res.json({
+      data: result.rows,
+      page,
+      limit,
+      total: parseInt(countResult.rows[0].count),
+      totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

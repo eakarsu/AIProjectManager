@@ -1,18 +1,45 @@
 const express = require('express');
 const router = express.Router();
 
-// Get all risks
+// Get all risks (with pagination)
 router.get('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
+
+    // If no pagination params, return all for backward compat
+    if (!req.query.page && !req.query.limit) {
+      const result = await pool.query(`
+        SELECT r.*, p.name as project_name, u.name as owner_name
+        FROM risks r
+        LEFT JOIN projects p ON r.project_id = p.id
+        LEFT JOIN users u ON r.owner_id = u.id
+        ORDER BY r.risk_score DESC, r.created_at DESC
+      `);
+      return res.json(result.rows);
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
     const result = await pool.query(`
       SELECT r.*, p.name as project_name, u.name as owner_name
       FROM risks r
       LEFT JOIN projects p ON r.project_id = p.id
       LEFT JOIN users u ON r.owner_id = u.id
       ORDER BY r.risk_score DESC, r.created_at DESC
-    `);
-    res.json(result.rows);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    const countResult = await pool.query('SELECT COUNT(*) FROM risks');
+
+    res.json({
+      data: result.rows,
+      page,
+      limit,
+      total: parseInt(countResult.rows[0].count),
+      totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

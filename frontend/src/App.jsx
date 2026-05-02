@@ -17,6 +17,9 @@ import Calendar from './pages/Calendar';
 import Documents from './pages/Documents';
 import ActivityLog from './pages/ActivityLog';
 import Notifications from './pages/Notifications';
+import AIHistory from './pages/AIHistory';
+import ProjectHealth from './pages/ProjectHealth';
+import StandupSummary from './pages/StandupSummary';
 import Navbar from './components/Navbar';
 
 function App() {
@@ -74,6 +77,9 @@ function App() {
           <Route path="/documents" element={<Documents />} />
           <Route path="/activity-log" element={<ActivityLog />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/ai-history" element={<AIHistory />} />
+          <Route path="/project-health" element={<ProjectHealth />} />
+          <Route path="/standup-summary" element={<StandupSummary />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FiGrid, FiFolder, FiCheckSquare, FiRepeat, FiAlertTriangle, FiMessageCircle, FiUsers, FiLogOut, FiColumns, FiFlag, FiClock, FiRotateCcw, FiBarChart2, FiCalendar, FiFileText, FiActivity, FiBell } from 'react-icons/fi';
+import { FiGrid, FiFolder, FiCheckSquare, FiRepeat, FiAlertTriangle, FiMessageCircle, FiUsers, FiLogOut, FiColumns, FiFlag, FiClock, FiRotateCcw, FiBarChart2, FiCalendar, FiFileText, FiActivity, FiBell, FiZap, FiHeart, FiCpu } from 'react-icons/fi';
 
 const navSections = [
   {
@@ -35,6 +35,14 @@ const navSections = [
       { to: '/team', icon: <FiUsers />, label: 'Team' },
       { to: '/time-tracking', icon: <FiClock />, label: 'Time Tracking' },
       { to: '/documents', icon: <FiFileText />, label: 'Documents' },
+    ],
+  },
+  {
+    title: 'AI',
+    items: [
+      { to: '/ai-history', icon: <FiZap />, label: 'AI History' },
+      { to: '/project-health', icon: <FiHeart />, label: 'Project Health' },
+      { to: '/standup-summary', icon: <FiCpu />, label: 'Standup AI' },
     ],
   },
   {

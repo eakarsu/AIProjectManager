@@ -1,7 +1,10 @@
 require('dotenv').config({ path: '../.env' });
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { Pool } = require('pg');
+const { authenticateToken } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 3001;
@@ -18,19 +21,55 @@ const pool = new Pool({
 // Make pool available to routes
 app.locals.pool = pool;
 
-// Middleware
-app.use(cors());
+// Security middleware
+app.use(helmet());
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true,
+}));
 app.use(express.json());
 
-// Routes
+// AI rate limiter: 20 requests per hour per user
+const aiRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20,
+  keyGenerator: (req) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+        return `user_${decoded.id}`;
+      } catch {}
+    }
+    return req.ip;
+  },
+  message: { error: 'Too many AI requests. Limit is 20 per hour.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Public routes (no auth)
 app.use('/api/auth', require('./routes/auth'));
+
+// Apply global auth to all /api routes except /api/auth and /api/health
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health' || req.path.startsWith('/auth')) return next();
+  authenticateToken(req, res, next);
+});
+
+// Apply AI rate limiter to project AI endpoints (must be before route registration)
+app.use(/^\/api\/projects\/\d+\/ai-/, aiRateLimiter);
+
+// Protected routes
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/sprints', require('./routes/sprints'));
 app.use('/api/risks', require('./routes/risks'));
 app.use('/api/standups', require('./routes/standups'));
 app.use('/api/team', require('./routes/team'));
-app.use('/api/ai', require('./routes/ai'));
+app.use('/api/ai', aiRateLimiter, require('./routes/ai'));
 app.use('/api/comments', require('./routes/comments'));
 app.use('/api/activities', require('./routes/activities'));
 app.use('/api/notifications', require('./routes/notifications'));
