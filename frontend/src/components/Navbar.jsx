@@ -43,6 +43,8 @@ const navSections = [
       { to: '/ai-history', icon: <FiZap />, label: 'AI History' },
       { to: '/project-health', icon: <FiHeart />, label: 'Project Health' },
       { to: '/standup-summary', icon: <FiCpu />, label: 'Standup AI' },
+      { to: '/estimate-timeline', icon: <FiClock />, label: 'Timeline Estimator' },
+      { to: '/smart-assign', icon: <FiUsers />, label: 'Smart Assign' },
     ],
   },
   {

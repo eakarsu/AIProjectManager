@@ -126,3 +126,18 @@ app.get('/api/dashboard/stats', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
 });
+
+// AI feature mount: burnout-detection
+app.use('/api/ai/burnout-detection', require('./routes/ai-burnout-detection'));
+// === Batch 07 Gaps & Frontend Mounts ===
+app.use('/api/gap-no-ai-timeline-estimation-under-velocitydepe', require('./routes/gap-no-ai-timeline-estimation-under-velocitydepe'));
+app.use('/api/gap-no-ai-autoassignment-by-skills-and-workload', require('./routes/gap-no-ai-autoassignment-by-skills-and-workload'));
+app.use('/api/gap-no-documenttotask-ingestion-requirements-pdf', require('./routes/gap-no-documenttotask-ingestion-requirements-pdf'));
+app.use('/api/gap-no-ai-meeting-transcript-summarization-to-ta', require('./routes/gap-no-ai-meeting-transcript-summarization-to-ta'));
+app.use('/api/gap-no-ai-burnoutsentiment-detection-across-stan', require('./routes/gap-no-ai-burnoutsentiment-detection-across-stan'));
+app.use('/api/gap-no-public-webhook-system-or-outbound-integra', require('./routes/gap-no-public-webhook-system-or-outbound-integra'));
+app.use('/api/gap-no-native-jiragithublinearslack-connectors', require('./routes/gap-no-native-jiragithublinearslack-connectors'));
+app.use('/api/gap-no-formal-rbac-matrix-granular-permission-ro', require('./routes/gap-no-formal-rbac-matrix-granular-permission-ro'));
+app.use('/api/gap-no-fileupload-route-attachments-rely-on-docu', require('./routes/gap-no-fileupload-route-attachments-rely-on-docu'));
+app.use('/api/gap-no-ssooauth-provider-hookups', require('./routes/gap-no-ssooauth-provider-hookups'));
+// === End Batch 07 ===
