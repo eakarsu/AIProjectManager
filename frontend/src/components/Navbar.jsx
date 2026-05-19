@@ -48,6 +48,12 @@ const navSections = [
     ],
   },
   {
+    title: 'PM Views',
+    items: [
+      { to: '/custom-views', icon: <FiBarChart2 />, label: 'PM Views' },
+    ],
+  },
+  {
     title: 'System',
     items: [
       { to: '/activity-log', icon: <FiActivity />, label: 'Activity Log' },

@@ -2,7 +2,7 @@ require('dotenv').config({ path: '../.env' });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { Pool } = require('pg');
 const { authenticateToken } = require('./middleware/auth');
 
@@ -43,7 +43,7 @@ const aiRateLimiter = rateLimit({
         return `user_${decoded.id}`;
       } catch {}
     }
-    return req.ip;
+    return ipKeyGenerator(req.ip);
   },
   message: { error: 'Too many AI requests. Limit is 20 per hour.' },
   standardHeaders: true,
@@ -122,6 +122,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Custom Views (mount BEFORE 404/listen)
+app.use('/api/custom-views', require('./routes/customViews'));
 
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);

@@ -25,6 +25,7 @@ import SmartAssign from './pages/SmartAssign';
 import SentimentSprintReview from './pages/SentimentSprintReview';
 import CrossTeamOptimize from './pages/CrossTeamOptimize';
 import Navbar from './components/Navbar';
+import CustomViewsPage from './pages/CustomViewsPage';
 
 // === Batch 07 Gaps & Frontend Mounts ===
 import CfAgenticSprintPlanner from './pages/CfAgenticSprintPlanner';
@@ -106,6 +107,7 @@ function App() {
           <Route path="/standup-summary" element={<StandupSummary />} />
           <Route path="/estimate-timeline" element={<EstimateTimeline />} />
           <Route path="/smart-assign" element={<SmartAssign />} />
+          <Route path="/custom-views" element={<CustomViewsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
           // === Batch 07 Gaps & Frontend Mounts ===
           <Route path='/cf-agentic-sprint-planner' element={<CfAgenticSprintPlanner />} />
