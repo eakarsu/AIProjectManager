@@ -20,7 +20,32 @@ import Notifications from './pages/Notifications';
 import AIHistory from './pages/AIHistory';
 import ProjectHealth from './pages/ProjectHealth';
 import StandupSummary from './pages/StandupSummary';
+import EstimateTimeline from './pages/EstimateTimeline';
+import SmartAssign from './pages/SmartAssign';
+import SentimentSprintReview from './pages/SentimentSprintReview';
+import CrossTeamOptimize from './pages/CrossTeamOptimize';
 import Navbar from './components/Navbar';
+import CustomViewsPage from './pages/CustomViewsPage';
+
+// === Batch 07 Gaps & Frontend Mounts ===
+import CfAgenticSprintPlanner from './pages/CfAgenticSprintPlanner';
+import CfRealtimeBurndownStreaming from './pages/CfRealtimeBurndownStreaming';
+import CfCrossteamResourceOptimization from './pages/CfCrossteamResourceOptimization';
+import CfDocumentBacklogIngestion from './pages/CfDocumentBacklogIngestion';
+import CfMeetingRecordingTranscription from './pages/CfMeetingRecordingTranscription';
+import CfSentimentdrivenSprintReview from './pages/CfSentimentdrivenSprintReview';
+import GapNoAiTimelineEstimationUnderVelocitydepe from './pages/GapNoAiTimelineEstimationUnderVelocitydepe';
+import GapNoAiAutoassignmentBySkillsAndWorkload from './pages/GapNoAiAutoassignmentBySkillsAndWorkload';
+import GapNoDocumenttotaskIngestionRequirementsPdf from './pages/GapNoDocumenttotaskIngestionRequirementsPdf';
+import GapNoAiMeetingTranscriptSummarizationToTa from './pages/GapNoAiMeetingTranscriptSummarizationToTa';
+import GapNoAiBurnoutsentimentDetectionAcrossStan from './pages/GapNoAiBurnoutsentimentDetectionAcrossStan';
+import GapNoPublicWebhookSystemOrOutboundIntegra from './pages/GapNoPublicWebhookSystemOrOutboundIntegra';
+import GapNoNativeJiragithublinearslackConnectors from './pages/GapNoNativeJiragithublinearslackConnectors';
+import GapNoFormalRbacMatrixGranularPermissionRo from './pages/GapNoFormalRbacMatrixGranularPermissionRo';
+import GapNoFileuploadRouteAttachmentsRelyOnDocu from './pages/GapNoFileuploadRouteAttachmentsRelyOnDocu';
+import GapNoSsooauthProviderHookups from './pages/GapNoSsooauthProviderHookups';
+// === End Batch 07 ===
+
 
 function App() {
   const [user, setUser] = useState(null);
@@ -80,7 +105,28 @@ function App() {
           <Route path="/ai-history" element={<AIHistory />} />
           <Route path="/project-health" element={<ProjectHealth />} />
           <Route path="/standup-summary" element={<StandupSummary />} />
+          <Route path="/estimate-timeline" element={<EstimateTimeline />} />
+          <Route path="/smart-assign" element={<SmartAssign />} />
+          <Route path="/custom-views" element={<CustomViewsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
+          // === Batch 07 Gaps & Frontend Mounts ===
+          <Route path='/cf-agentic-sprint-planner' element={<CfAgenticSprintPlanner />} />
+          <Route path='/cf-realtime-burndown-streaming' element={<CfRealtimeBurndownStreaming />} />
+          <Route path='/cf-crossteam-resource-optimization' element={<CfCrossteamResourceOptimization />} />
+          <Route path='/cf-document-backlog-ingestion' element={<CfDocumentBacklogIngestion />} />
+          <Route path='/cf-meeting-recording-transcription' element={<CfMeetingRecordingTranscription />} />
+          <Route path='/cf-sentimentdriven-sprint-review' element={<CfSentimentdrivenSprintReview />} />
+          <Route path='/gap-no-ai-timeline-estimation-under-velocitydepe' element={<GapNoAiTimelineEstimationUnderVelocitydepe />} />
+          <Route path='/gap-no-ai-autoassignment-by-skills-and-workload' element={<GapNoAiAutoassignmentBySkillsAndWorkload />} />
+          <Route path='/gap-no-documenttotask-ingestion-requirements-pdf' element={<GapNoDocumenttotaskIngestionRequirementsPdf />} />
+          <Route path='/gap-no-ai-meeting-transcript-summarization-to-ta' element={<GapNoAiMeetingTranscriptSummarizationToTa />} />
+          <Route path='/gap-no-ai-burnoutsentiment-detection-across-stan' element={<GapNoAiBurnoutsentimentDetectionAcrossStan />} />
+          <Route path='/gap-no-public-webhook-system-or-outbound-integra' element={<GapNoPublicWebhookSystemOrOutboundIntegra />} />
+          <Route path='/gap-no-native-jiragithublinearslack-connectors' element={<GapNoNativeJiragithublinearslackConnectors />} />
+          <Route path='/gap-no-formal-rbac-matrix-granular-permission-ro' element={<GapNoFormalRbacMatrixGranularPermissionRo />} />
+          <Route path='/gap-no-fileupload-route-attachments-rely-on-docu' element={<GapNoFileuploadRouteAttachmentsRelyOnDocu />} />
+          <Route path='/gap-no-ssooauth-provider-hookups' element={<GapNoSsooauthProviderHookups />} />
+          // === End Batch 07 ===
         </Routes>
       </main>
     </div>

@@ -436,6 +436,265 @@ router.post('/document-summary', async (req, res) => {
   }
 });
 
+// AI Timeline Estimator
+router.post('/estimate-timeline', async (req, res) => {
+  try {
+    const { project_id, scope, team_velocity, team_size, dependencies, holidays } = req.body;
+    const pool = req.app.locals.pool;
+
+    let projectMeta = null;
+    let backlog = [];
+    if (project_id) {
+      try {
+        const p = await pool.query('SELECT id, name, description, status, start_date, target_end_date FROM projects WHERE id = $1', [project_id]);
+        projectMeta = p.rows[0] || null;
+      } catch (_) {}
+      try {
+        const t = await pool.query(
+          'SELECT id, title, story_points, status, priority, due_date FROM tasks WHERE project_id = $1 ORDER BY priority ASC, due_date ASC NULLS LAST LIMIT 200',
+          [project_id]
+        );
+        backlog = t.rows;
+      } catch (_) {}
+    }
+
+    const systemPrompt = `You are a project planning AI. Estimate a realistic timeline considering velocity, dependencies, holidays, and team size. Return ONLY valid JSON.`;
+    const prompt = `Project: ${JSON.stringify(projectMeta || { description: scope || 'unknown' })}
+Team Velocity (story_points/sprint): ${team_velocity || 'unknown'}
+Team Size: ${team_size || 'unknown'}
+Holidays: ${(holidays || []).join(', ') || 'none specified'}
+Declared Dependencies: ${JSON.stringify(dependencies || [])}
+
+Backlog:
+${backlog.map(t => `id=${t.id} "${t.title}" sp=${t.story_points || '?'} prio=${t.priority || ''} status=${t.status || ''} due=${t.due_date || ''}`).join('\n') || 'No backlog items'}
+
+Return JSON:
+{
+  "estimated_completion_date": "YYYY-MM-DD",
+  "confidence": "low|medium|high",
+  "milestones": [{"name": "string", "by": "YYYY-MM-DD", "rationale": "string"}],
+  "critical_path": ["string"],
+  "risks": [{"risk": "string", "schedule_impact_days": 0, "mitigation": "string"}],
+  "buffer_days_recommended": 0,
+  "summary": "string"
+}`;
+
+    const aiResponse = await callOpenRouter(prompt, systemPrompt);
+    const parsed = parseAIJson(aiResponse);
+    const userId = req.user?.id;
+    await persistAiResult(pool, { user_id: userId, endpoint: 'estimate-timeline', project_id, result: aiResponse, result_json: parsed });
+    res.json({ result: aiResponse, parsed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Smart Assignment - assign tasks based on skill/workload
+router.post('/smart-assign', async (req, res) => {
+  try {
+    const { project_id, task_ids, team_members } = req.body;
+    const pool = req.app.locals.pool;
+
+    let tasks = [];
+    if (Array.isArray(task_ids) && task_ids.length > 0) {
+      try {
+        const r = await pool.query(
+          'SELECT id, title, description, story_points, priority, status, required_skills FROM tasks WHERE id = ANY($1::int[])',
+          [task_ids]
+        );
+        tasks = r.rows;
+      } catch (_) {}
+    } else if (project_id) {
+      try {
+        const r = await pool.query(
+          'SELECT id, title, description, story_points, priority, status, required_skills FROM tasks WHERE project_id = $1 AND status NOT IN (\'done\',\'closed\') LIMIT 100',
+          [project_id]
+        );
+        tasks = r.rows;
+      } catch (_) {}
+    }
+
+    let team = team_members;
+    if (!team) {
+      try {
+        const r = await pool.query('SELECT id, name, role, skills, current_load_hours, capacity_hours FROM team_members LIMIT 100').catch(() => pool.query('SELECT id, name, role FROM team_members LIMIT 100'));
+        team = r.rows;
+      } catch (_) { team = []; }
+    }
+
+    const systemPrompt = `You are a team-load balancer AI. Assign tasks to team members maximizing skill fit and minimizing overload. Return ONLY valid JSON.`;
+    const prompt = `Tasks to assign:
+${tasks.map(t => `id=${t.id} "${t.title}" sp=${t.story_points || '?'} prio=${t.priority || ''} skills_required=${JSON.stringify(t.required_skills || [])}`).join('\n') || 'None'}
+
+Team members:
+${(team || []).map(m => `id=${m.id} name=${m.name} role=${m.role || ''} skills=${JSON.stringify(m.skills || [])} load=${m.current_load_hours || '?'}/${m.capacity_hours || '?'}`).join('\n') || 'None'}
+
+Return JSON:
+{
+  "assignments": [{"task_id": 0, "assignee_id": 0, "rationale": "string", "confidence": "low|medium|high"}],
+  "unassigned": [{"task_id": 0, "reason": "string"}],
+  "load_after": [{"assignee_id": 0, "predicted_hours": 0}],
+  "warnings": ["string"]
+}`;
+
+    const aiResponse = await callOpenRouter(prompt, systemPrompt);
+    const parsed = parseAIJson(aiResponse);
+    const userId = req.user?.id;
+    await persistAiResult(pool, { user_id: userId, endpoint: 'smart-assign', project_id: project_id || null, result: aiResponse, result_json: parsed });
+    res.json({ result: aiResponse, parsed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================================================================
+// Apply pass 4 (mechanical backlog): sentiment-driven sprint review +
+// cross-team resource optimization. Both 503 on missing OPENROUTER_API_KEY
+// and follow the existing callOpenRouter / parseAIJson / persistAiResult
+// pattern used by the rest of this file.
+// =====================================================================
+
+function requireApiKey(res) {
+  if (!process.env.OPENROUTER_API_KEY) {
+    res.status(503).json({ error: 'AI service unavailable: OPENROUTER_API_KEY not configured' });
+    return false;
+  }
+  return true;
+}
+
+// AI Sentiment-Driven Sprint Review — analyse sprint feedback into themes + sentiment
+router.post('/sentiment-sprint-review', async (req, res) => {
+  try {
+    if (!requireApiKey(res)) return;
+    const { project_id, sprint_id, feedback_items, retro_text } = req.body || {};
+    const pool = req.app.locals.pool;
+
+    let collected = Array.isArray(feedback_items) ? [...feedback_items] : [];
+    if (typeof retro_text === 'string' && retro_text.trim().length > 0) {
+      collected.push(retro_text);
+    }
+
+    // If sprint_id supplied, try to fetch retrospective entries (table optional)
+    if (sprint_id) {
+      try {
+        const r = await pool.query(
+          `SELECT what_went_well, what_went_wrong, action_items, notes
+           FROM retrospectives WHERE sprint_id = $1 LIMIT 50`,
+          [sprint_id]
+        );
+        for (const row of r.rows) {
+          if (row.what_went_well) collected.push(`WENT_WELL: ${row.what_went_well}`);
+          if (row.what_went_wrong) collected.push(`WENT_WRONG: ${row.what_went_wrong}`);
+          if (row.action_items) collected.push(`ACTIONS: ${typeof row.action_items === 'string' ? row.action_items : JSON.stringify(row.action_items)}`);
+          if (row.notes) collected.push(`NOTES: ${row.notes}`);
+        }
+      } catch (_) {
+        // table optional / different schema — fall back to inline-only data
+      }
+    }
+
+    const systemPrompt = `You are an agile coach AI. Analyse sprint retrospective feedback for sentiment, themes, blockers, and recommended actions. Return ONLY valid JSON.`;
+    const prompt = `Project ID: ${project_id || 'n/a'}
+Sprint ID: ${sprint_id || 'n/a'}
+
+Feedback items:
+${collected.map((s, i) => `${i + 1}. ${s}`).join('\n') || 'No feedback items provided'}
+
+Return JSON:
+{
+  "overall_sentiment": "positive|negative|neutral|mixed",
+  "sentiment_breakdown": {"positive_pct": 0, "negative_pct": 0, "neutral_pct": 0},
+  "themes": [{"theme": "string", "sentiment": "positive|negative|neutral|mixed", "frequency_pct": 0, "summary": "string", "representative_quotes": ["string"]}],
+  "top_blockers": ["string"],
+  "celebrations": ["string"],
+  "recommended_actions": [{"action": "string", "owner_hint": "string", "priority": "low|medium|high"}],
+  "summary": "string"
+}`;
+
+    const aiResponse = await callOpenRouter(prompt, systemPrompt);
+    const parsed = parseAIJson(aiResponse);
+    const userId = req.user?.id;
+    await persistAiResult(pool, { user_id: userId, endpoint: 'sentiment-sprint-review', project_id: project_id || null, result: aiResponse, result_json: parsed });
+    res.json({ result: aiResponse, parsed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Cross-Team Resource Optimizer — optimise allocation across multiple projects/teams
+router.post('/cross-team-optimize', async (req, res) => {
+  try {
+    if (!requireApiKey(res)) return;
+    const { project_ids, teams, constraints, priorities } = req.body || {};
+    const pool = req.app.locals.pool;
+
+    let projects = [];
+    if (Array.isArray(project_ids) && project_ids.length > 0) {
+      try {
+        const r = await pool.query(
+          `SELECT id, name, status, start_date, target_end_date FROM projects WHERE id = ANY($1::int[])`,
+          [project_ids]
+        );
+        projects = r.rows;
+      } catch (_) {}
+    }
+
+    let teamData = teams;
+    if (!teamData) {
+      try {
+        const r = await pool.query(
+          `SELECT id, name, role, skills, current_load_hours, capacity_hours FROM team_members LIMIT 200`
+        ).catch(() => pool.query('SELECT id, name, role FROM team_members LIMIT 200'));
+        teamData = r.rows;
+      } catch (_) { teamData = []; }
+    }
+
+    let openTasks = [];
+    if (Array.isArray(project_ids) && project_ids.length > 0) {
+      try {
+        const r = await pool.query(
+          `SELECT id, project_id, title, story_points, priority, status, required_skills
+           FROM tasks WHERE project_id = ANY($1::int[]) AND status NOT IN ('done','closed') LIMIT 300`,
+          [project_ids]
+        );
+        openTasks = r.rows;
+      } catch (_) {}
+    }
+
+    const systemPrompt = `You are a cross-team portfolio optimiser. Reallocate people and shift task ownership across multiple projects to maximise priority delivery while respecting skills, load, and constraints. Return ONLY valid JSON.`;
+    const prompt = `Projects:
+${JSON.stringify(projects, null, 2)}
+
+Open tasks (sample):
+${JSON.stringify(openTasks.slice(0, 80), null, 2)}
+
+Teams / members:
+${JSON.stringify(teamData, null, 2)}
+
+Constraints: ${JSON.stringify(constraints || {})}
+Priorities: ${JSON.stringify(priorities || {})}
+
+Return JSON:
+{
+  "reallocations": [{"member_id": 0, "from_project_id": 0, "to_project_id": 0, "hours_per_week": 0, "rationale": "string"}],
+  "task_reassignments": [{"task_id": 0, "new_assignee_id": 0, "rationale": "string", "confidence": "low|medium|high"}],
+  "underutilised_members": [{"member_id": 0, "free_hours": 0}],
+  "overloaded_members": [{"member_id": 0, "overload_hours": 0}],
+  "expected_throughput_lift_pct": 0,
+  "warnings": ["string"],
+  "summary": "string"
+}`;
+
+    const aiResponse = await callOpenRouter(prompt, systemPrompt);
+    const parsed = parseAIJson(aiResponse);
+    const userId = req.user?.id;
+    await persistAiResult(pool, { user_id: userId, endpoint: 'cross-team-optimize', result: aiResponse, result_json: parsed });
+    res.json({ result: aiResponse, parsed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/ai/history - paginated ai_results for logged-in user
 router.get('/history', async (req, res) => {
   try {
