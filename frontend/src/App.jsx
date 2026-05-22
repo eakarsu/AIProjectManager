@@ -44,6 +44,9 @@ import GapNoNativeJiragithublinearslackConnectors from './pages/GapNoNativeJirag
 import GapNoFormalRbacMatrixGranularPermissionRo from './pages/GapNoFormalRbacMatrixGranularPermissionRo';
 import GapNoFileuploadRouteAttachmentsRelyOnDocu from './pages/GapNoFileuploadRouteAttachmentsRelyOnDocu';
 import GapNoSsooauthProviderHookups from './pages/GapNoSsooauthProviderHookups';
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
 // === End Batch 07 ===
 
 
@@ -86,6 +89,9 @@ function App() {
       <Navbar user={user} onLogout={handleLogout} />
       <main className="main-content">
         <Routes>
+        <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
+        <Route path="/codex/operations" element={<CodexOperationsFeature />} />
+
           <Route path="/" element={<Dashboard />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/tasks" element={<Tasks />} />
