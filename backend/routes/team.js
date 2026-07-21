@@ -1,5 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const TEAM_ROLES = new Set(['developer', 'designer', 'qa', 'analyst', 'viewer']);
+const requireManager = (req, res, next) => ['admin', 'project_manager', 'portfolio_manager'].includes(req.user?.role)
+  ? next()
+  : res.status(403).json({ error: 'Project manager role required' });
 
 // Get all team members
 router.get('/', async (req, res) => {
@@ -48,9 +52,10 @@ router.get('/users/all', async (req, res) => {
 });
 
 // Create team member
-router.post('/', async (req, res) => {
+router.post('/', requireManager, async (req, res) => {
   try {
     const { user_id, project_id, role, availability, skills } = req.body;
+    if (role && !TEAM_ROLES.has(role)) return res.status(400).json({ error: 'Unsupported project role' });
     const pool = req.app.locals.pool;
     const result = await pool.query(
       `INSERT INTO team_members (user_id, project_id, role, availability, skills)
@@ -64,9 +69,10 @@ router.post('/', async (req, res) => {
 });
 
 // Update team member
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireManager, async (req, res) => {
   try {
     const { user_id, project_id, role, availability, skills } = req.body;
+    if (!TEAM_ROLES.has(role)) return res.status(400).json({ error: 'Unsupported project role' });
     const pool = req.app.locals.pool;
     const result = await pool.query(
       `UPDATE team_members SET user_id=$1, project_id=$2, role=$3, availability=$4, skills=$5
@@ -81,7 +87,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete team member
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireManager, async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const result = await pool.query('DELETE FROM team_members WHERE id = $1 RETURNING *', [req.params.id]);

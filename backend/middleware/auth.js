@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { jwtSecret } = require('../config/security');
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -9,7 +10,7 @@ function authenticateToken(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, jwtSecret());
     req.user = decoded;
     next();
   } catch (err) {

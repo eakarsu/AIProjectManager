@@ -5,6 +5,12 @@ const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { Pool } = require('pg');
 const { authenticateToken } = require('./middleware/auth');
+const { validateRuntime } = require('./governance/runtime');
+const { createProviderGate } = require('./governance/providerGate');
+const governanceRouter = require('./governance/router');
+const { jwtSecret } = require('./config/security');
+
+validateRuntime();
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 3001;
@@ -23,11 +29,10 @@ app.locals.pool = pool;
 
 // Security middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true,
-}));
+const allowedOrigins=String(process.env.CORS_ORIGINS||process.env.CLIENT_URL||'http://localhost:3000').split(',').map(v=>v.trim()).filter(Boolean);
+app.use(cors({origin:(origin,cb)=>!origin||allowedOrigins.includes(origin)?cb(null,true):cb(new Error('Origin not allowed by CORS')),credentials:true}));
 app.use(express.json());
+app.use(createProviderGate(['/api/ai','/api/gap']));
 
 // AI rate limiter: 20 requests per hour per user
 const aiRateLimiter = rateLimit({
@@ -39,7 +44,7 @@ const aiRateLimiter = rateLimit({
     if (token) {
       try {
         const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+        const decoded = jwt.verify(token, jwtSecret());
         return `user_${decoded.id}`;
       } catch {}
     }
@@ -80,6 +85,7 @@ app.use('/api/retrospectives', require('./routes/retrospectives'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/governed-project-baselines', governanceRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
