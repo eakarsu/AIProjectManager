@@ -32,7 +32,7 @@ app.use(helmet());
 const allowedOrigins=String(process.env.CORS_ORIGINS||process.env.CLIENT_URL||'http://localhost:3000').split(',').map(v=>v.trim()).filter(Boolean);
 app.use(cors({origin:(origin,cb)=>!origin||allowedOrigins.includes(origin)?cb(null,true):cb(new Error('Origin not allowed by CORS')),credentials:true}));
 app.use(express.json());
-app.use(createProviderGate(['/api/ai','/api/gap']));
+app.use(createProviderGate(['/api/gap']));
 
 // AI rate limiter: 20 requests per hour per user
 const aiRateLimiter = rateLimit({
