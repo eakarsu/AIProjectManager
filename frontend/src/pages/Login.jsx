@@ -26,8 +26,8 @@ export default function Login({ onLogin }) {
   };
 
   const handleAutoFill = () => {
-    const demoEmail = 'admin@aipm.com';
-    const demoPassword = 'password123';
+    const demoEmail = import.meta.env.VITE_DEMO_EMAIL || '';
+    const demoPassword = import.meta.env.VITE_DEMO_PASSWORD || '';
     setEmail(demoEmail);
     setPassword(demoPassword);
     doLogin(demoEmail, demoPassword);
