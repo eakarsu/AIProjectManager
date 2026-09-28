@@ -30,7 +30,6 @@ export default function Login({ onLogin }) {
     const demoPassword = import.meta.env.VITE_DEMO_PASSWORD || '';
     setEmail(demoEmail);
     setPassword(demoPassword);
-    doLogin(demoEmail, demoPassword);
   };
 
   const handleSubmit = async (e) => {
@@ -80,7 +79,7 @@ export default function Login({ onLogin }) {
           </button>
 
           <button type="button" className="btn btn-secondary" onClick={handleAutoFill} style={{ width: '100%', justifyContent: 'center' }}>
-            Quick Login (Demo Account)
+            Auto Fill Demo Credentials
           </button>
         </form>
 
