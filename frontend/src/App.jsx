@@ -25,6 +25,7 @@ import SmartAssign from './pages/SmartAssign';
 import SentimentSprintReview from './pages/SentimentSprintReview';
 import CrossTeamOptimize from './pages/CrossTeamOptimize';
 import Navbar from './components/Navbar';
+import AppSidebar from './components/AppSidebar';
 import CustomViewsPage from './pages/CustomViewsPage';
 
 // === Batch 07 Gaps & Frontend Mounts ===
@@ -85,9 +86,10 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <Navbar user={user} onLogout={handleLogout} />
-      <main className="main-content">
+    <div className="app codex-nav-shell">
+        <AppSidebar />
+        <Navbar user={user} onLogout={handleLogout} />
+        <main className="main-content">
         <Routes>
         <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
         <Route path="/codex/operations" element={<CodexOperationsFeature />} />
