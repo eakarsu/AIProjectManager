@@ -1,3 +1,5 @@
+import FormattedAIReport from '../components/FormattedAIReport';
+import NativeAIControls from "../components/NativeAIControls.jsx";
 import React, { useState, useEffect } from 'react';
 import { FiHeart, FiZap } from 'react-icons/fi';
 
@@ -31,6 +33,8 @@ export default function SentimentSprintReview() {
     API('/sprints').then(({ data }) => setSprints(Array.isArray(data) ? data : data.data || [])).catch(() => {});
   }, []);
 
+  const presets = ['Planning example', 'Delivery example', 'Review example'].map((name, index) => ({ name, fill: () => { setProjectId(value => value || String(projects[index % Math.max(projects.length, 1)]?.id || '')); setSprintId(value => value || String(sprints[index % Math.max(sprints.length, 1)]?.id || '')); setRetroText(['Illustrative retrospective: reviews completed on time, but context switches interrupted focus. Ask the team to confirm themes and propose protected focus hours.', 'Illustrative retrospective: test feedback arrived late and requirements changed twice. Confirm root causes and establish a shared readiness checklist.', 'Illustrative retrospective: onboarding helped collaboration, while support work reduced delivery time. Identify assumptions and review capacity with the team.'][index]); return { filled: 3, manual: projects.length ? [] : ['an existing project when linking this example'] }; } }));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -58,7 +62,7 @@ export default function SentimentSprintReview() {
   const parsed = result?.parsed || result;
 
   return (
-    <div>
+    <NativeAIControls busy={loading} context="ProjectManager" presets={presets}><div>
       <div className="page-header">
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -74,7 +78,7 @@ export default function SentimentSprintReview() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="form-label">Project (optional)</label>
-              <select className="form-input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <select data-ai-field={"projectId"} className="form-input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
                 <option value="">Select project...</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -83,7 +87,7 @@ export default function SentimentSprintReview() {
             </div>
             <div className="form-group">
               <label className="form-label">Sprint (optional)</label>
-              <select className="form-input" value={sprintId} onChange={(e) => setSprintId(e.target.value)}>
+              <select data-ai-field={"sprintId"} className="form-input" value={sprintId} onChange={(e) => setSprintId(e.target.value)}>
                 <option value="">Select sprint...</option>
                 {sprints.map((s) => (
                   <option key={s.id} value={s.id}>{s.name || `Sprint ${s.id}`}</option>
@@ -92,7 +96,7 @@ export default function SentimentSprintReview() {
             </div>
             <div className="form-group">
               <label className="form-label">Retrospective notes (optional, free text)</label>
-              <textarea
+              <textarea data-ai-field={"retroText"}
                 className="form-input"
                 style={{ minHeight: 160, resize: 'vertical' }}
                 value={retroText}
@@ -124,62 +128,12 @@ export default function SentimentSprintReview() {
               AI is analysing sprint feedback...
             </div>
           ) : parsed ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {parsed.overall_sentiment && (
-                <div>
-                  <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>Overall Sentiment</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>{parsed.overall_sentiment}</div>
-                </div>
-              )}
-              {parsed.themes?.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>Themes</div>
-                  <ul style={{ paddingLeft: 18, margin: 0 }}>
-                    {parsed.themes.map((t, i) => (
-                      <li key={i} style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 6, lineHeight: 1.5 }}>
-                        <strong>{t.theme}</strong> ({t.sentiment}, {t.frequency_pct}%): {t.summary}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {parsed.top_blockers?.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 12, color: '#fca5a5', textTransform: 'uppercase', marginBottom: 6 }}>Top Blockers</div>
-                  <ul style={{ paddingLeft: 18, margin: 0 }}>
-                    {parsed.top_blockers.map((b, i) => (
-                      <li key={i} style={{ color: '#fca5a5', fontSize: 13, marginBottom: 4 }}>{typeof b === 'string' ? b : JSON.stringify(b)}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {parsed.recommended_actions?.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 12, color: '#86efac', textTransform: 'uppercase', marginBottom: 6 }}>Recommended Actions</div>
-                  <ul style={{ paddingLeft: 18, margin: 0 }}>
-                    {parsed.recommended_actions.map((a, i) => (
-                      <li key={i} style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 4 }}>
-                        [{a.priority}] {a.action} {a.owner_hint ? `(owner: ${a.owner_hint})` : ''}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {parsed.summary && (
-                <div>
-                  <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>Summary</div>
-                  <p style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.6 }}>{parsed.summary}</p>
-                </div>
-              )}
-              {!parsed.overall_sentiment && parsed.result && (
-                <pre style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 13 }}>{parsed.result}</pre>
-              )}
-            </div>
+            <FormattedAIReport response={result} />
           ) : (
             <div style={{ color: '#64748b', fontSize: 14 }}>Run an analysis to see results.</div>
           )}
         </div>
       </div>
-    </div>
+    </div></NativeAIControls>
   );
 }

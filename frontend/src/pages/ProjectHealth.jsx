@@ -1,3 +1,4 @@
+import FormattedAIReport from '../components/FormattedAIReport';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar
@@ -173,7 +174,7 @@ export default function ProjectHealth() {
                       </button>
                     </div>
                     {healthSummary ? (
-                      <div style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 14, lineHeight: 1.7 }}>{healthSummary}</div>
+                      <FormattedAIReport response={healthSummary} title="Project health summary" />
                     ) : (
                       <div style={{ color: '#64748b', fontSize: 14 }}>Click "Generate AI Report" to get a narrative health summary powered by AI.</div>
                     )}

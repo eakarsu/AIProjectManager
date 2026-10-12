@@ -115,6 +115,8 @@ function App() {
           <Route path="/standup-summary" element={<StandupSummary />} />
           <Route path="/estimate-timeline" element={<EstimateTimeline />} />
           <Route path="/smart-assign" element={<SmartAssign />} />
+          <Route path="/sentiment-sprint-review" element={<SentimentSprintReview />} />
+          <Route path="/cross-team-optimize" element={<CrossTeamOptimize />} />
           <Route path="/custom-views" element={<CustomViewsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
           // === Batch 07 Gaps & Frontend Mounts ===

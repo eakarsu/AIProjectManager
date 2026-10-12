@@ -1,3 +1,4 @@
+import FormattedAIReport from "../components/FormattedAIReport";
 import React, { useState, useEffect } from 'react';
 import { FiClock, FiRefreshCw } from 'react-icons/fi';
 
@@ -109,9 +110,7 @@ export default function AIHistory() {
                     overflow: 'auto',
                     maxHeight: '400px',
                   }}>
-                    <pre style={{ margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {JSON.stringify(item.result_json, null, 2)}
-                    </pre>
+                    <FormattedAIReport response={item.result_json} />
                   </div>
                 )}
 

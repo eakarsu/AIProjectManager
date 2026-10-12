@@ -1,3 +1,5 @@
+import FormattedAIReport from '../components/FormattedAIReport';
+import NativeAIControls from '../components/NativeAIControls.jsx';
 import React, { useState, useEffect } from 'react';
 import { FiClock, FiZap } from 'react-icons/fi';
 
@@ -29,6 +31,8 @@ export default function EstimateTimeline() {
       .catch(() => {});
   }, []);
 
+  const presets = ['Planning example', 'Delivery example', 'Review example'].map((name, index) => ({ name, fill: () => { setProjectId(value => value || String(projects[index % Math.max(projects.length, 1)]?.id || '')); setScope(['Draft planning example: deliver an accessible customer portal with sign-in, project dashboard, and review workflow. Dependencies: design review and integration access.', 'Draft planning example: migrate reporting to a new dashboard, validate source data, test permissions, and schedule a staged release.', 'Draft planning example: add team scheduling, notifications, and an audit trail with human approval before release.'][index]); setVelocity([20, 25, 30][index]); setTeamSize([4, 5, 6][index]); return { filled: 4, manual: projects.length ? [] : ['an existing project when linking this example'] }; } }));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -55,7 +59,7 @@ export default function EstimateTimeline() {
   const parsed = result?.parsed || result;
 
   return (
-    <div>
+    <NativeAIControls busy={loading} context="ProjectManager" presets={presets}><div>
       <div className="page-header">
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -155,119 +159,12 @@ export default function EstimateTimeline() {
               AI is estimating timeline...
             </div>
           ) : parsed ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {parsed.estimated_completion && (
-                <div>
-                  <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>
-                    Completion
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>
-                    {parsed.estimated_completion}
-                  </div>
-                </div>
-              )}
-              {parsed.buffer_recommendation && (
-                <div>
-                  <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>
-                    Buffer Recommendation
-                  </div>
-                  <div style={{ fontSize: 14, color: '#e2e8f0' }}>
-                    {typeof parsed.buffer_recommendation === 'string'
-                      ? parsed.buffer_recommendation
-                      : JSON.stringify(parsed.buffer_recommendation)}
-                  </div>
-                </div>
-              )}
-              {parsed.milestones?.length > 0 && (
-                <div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: '#64748b',
-                      textTransform: 'uppercase',
-                      marginBottom: 6,
-                    }}
-                  >
-                    Milestones
-                  </div>
-                  <ul style={{ paddingLeft: 18, margin: 0 }}>
-                    {parsed.milestones.map((m, i) => (
-                      <li
-                        key={i}
-                        style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 4, lineHeight: 1.5 }}
-                      >
-                        {typeof m === 'string' ? m : `${m.name || ''} — ${m.date || ''}`}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {parsed.critical_path?.length > 0 && (
-                <div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: '#64748b',
-                      textTransform: 'uppercase',
-                      marginBottom: 6,
-                    }}
-                  >
-                    Critical Path
-                  </div>
-                  <ul style={{ paddingLeft: 18, margin: 0 }}>
-                    {parsed.critical_path.map((c, i) => (
-                      <li
-                        key={i}
-                        style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 4, lineHeight: 1.5 }}
-                      >
-                        {typeof c === 'string' ? c : JSON.stringify(c)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {parsed.risks?.length > 0 && (
-                <div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: '#fca5a5',
-                      textTransform: 'uppercase',
-                      marginBottom: 6,
-                    }}
-                  >
-                    Risks
-                  </div>
-                  <ul style={{ paddingLeft: 18, margin: 0 }}>
-                    {parsed.risks.map((r, i) => (
-                      <li
-                        key={i}
-                        style={{ color: '#fca5a5', fontSize: 13, marginBottom: 4, lineHeight: 1.5 }}
-                      >
-                        {typeof r === 'string' ? r : JSON.stringify(r)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {!parsed.estimated_completion && parsed.content && (
-                <pre
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    color: '#cbd5e1',
-                    fontSize: 13,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {parsed.content}
-                </pre>
-              )}
-            </div>
+            <FormattedAIReport response={result} />
           ) : (
             <div style={{ color: '#64748b', fontSize: 14 }}>Run an estimate to see results.</div>
           )}
         </div>
       </div>
-    </div>
+    </div></NativeAIControls>
   );
 }

@@ -1,3 +1,5 @@
+import FormattedAIReport from '../components/FormattedAIReport';
+import NativeAIControls from '../components/NativeAIControls.jsx';
 import React, { useState, useEffect } from 'react';
 import { FiUsers, FiZap } from 'react-icons/fi';
 
@@ -27,6 +29,8 @@ export default function SmartAssign() {
       .catch(() => {});
   }, []);
 
+  const presets = ['Planning example', 'Delivery example', 'Review example'].map((name, index) => ({ name, fill: () => { setProjectId(value => value || String(projects[index % Math.max(projects.length, 1)]?.id || '')); setConstraints(['Keep assignments within 32 hours per week; match skills; obtain team lead approval.', 'Reserve 20 percent capacity for support; distribute complex work fairly; flag missing skill evidence.', 'Prioritize urgent work, retain existing owners where feasible, and require review before changes.'][index]); return { filled: 2, manual: projects.length ? [] : ['an existing project when linking this example'] }; } }));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -55,7 +59,7 @@ export default function SmartAssign() {
   const warnings = parsed?.warnings || [];
 
   return (
-    <div>
+    <NativeAIControls busy={loading} context="ProjectManager" presets={presets}><div>
       <div className="page-header">
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -133,72 +137,7 @@ export default function SmartAssign() {
         </div>
       )}
 
-      {parsed && !loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {assignments.length > 0 && (
-            <div className="data-table-container" style={{ padding: 24 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Assignments</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', color: '#94a3b8' }}>
-                    <th style={{ padding: 8 }}>Task</th>
-                    <th style={{ padding: 8 }}>Assignee</th>
-                    <th style={{ padding: 8 }}>Rationale</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignments.map((a, i) => (
-                    <tr key={i} style={{ borderTop: '1px solid #2d2f45', color: '#cbd5e1' }}>
-                      <td style={{ padding: 8 }}>{a.task || a.task_id || a.title || '-'}</td>
-                      <td style={{ padding: 8 }}>{a.assignee || a.user || a.user_id || '-'}</td>
-                      <td style={{ padding: 8 }}>{a.rationale || a.reason || ''}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {loadAfter.length > 0 && (
-            <div className="data-table-container" style={{ padding: 24 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Load After</h3>
-              {loadAfter.map((m, i) => (
-                <div key={i} style={{ fontSize: 13, color: '#cbd5e1', padding: '4px 0' }}>
-                  {typeof m === 'string'
-                    ? m
-                    : `${m.user || m.name || ''} — ${m.load ?? m.utilization ?? ''}`}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {unassigned.length > 0 && (
-            <div className="data-table-container" style={{ padding: 24, background: '#3b1f1f' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#fca5a5' }}>
-                Unassigned
-              </h3>
-              {unassigned.map((u, i) => (
-                <div key={i} style={{ fontSize: 13, color: '#fca5a5', padding: '4px 0' }}>
-                  {typeof u === 'string' ? u : `${u.task || u.id || ''}: ${u.reason || ''}`}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {warnings.length > 0 && (
-            <div className="data-table-container" style={{ padding: 24, background: '#3b321f' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#fde68a' }}>
-                Warnings
-              </h3>
-              {warnings.map((w, i) => (
-                <div key={i} style={{ fontSize: 13, color: '#fde68a', padding: '4px 0' }}>
-                  {typeof w === 'string' ? w : JSON.stringify(w)}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      {result && <FormattedAIReport response={result} />}
+    </div></NativeAIControls>
   );
 }

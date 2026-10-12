@@ -1,3 +1,5 @@
+import FormattedAIReport from '../components/FormattedAIReport';
+import NativeAIControls from "../components/NativeAIControls.jsx";
 import React, { useState, useEffect } from 'react';
 import { FiGrid, FiZap } from 'react-icons/fi';
 
@@ -35,6 +37,8 @@ export default function CrossTeamOptimize() {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
+  const presets = ['Planning example', 'Delivery example', 'Review example'].map((name, index) => ({ name, fill: () => { const ids = selected.length ? selected : projects.slice(0, 2).map(p => p.id); setSelected(ids); setConstraints(JSON.stringify({ max_hours_per_member: [32, 36, 40][index], reserve_capacity_percent: [20, 15, 25][index], human_review_required: true }, null, 2)); setPriorities(JSON.stringify(Object.fromEntries(ids.map((id,i) => [String(id), i ? 'medium' : 'high'])), null, 2)); return { filled: 3, manual: projects.length ? [] : ['an existing project when linking this example'] }; } }));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -70,7 +74,7 @@ export default function CrossTeamOptimize() {
   const warnings = parsed?.warnings || [];
 
   return (
-    <div>
+    <NativeAIControls busy={loading} context="ProjectManager" presets={presets}><div>
       <div className="page-header">
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -112,11 +116,11 @@ export default function CrossTeamOptimize() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="form-group">
               <label className="form-label">Constraints (JSON or free text)</label>
-              <textarea className="form-input" rows={4} value={constraints} onChange={(e) => setConstraints(e.target.value)} placeholder='{"max_hours_per_member": 40}' />
+              <textarea data-ai-field={"constraints"} className="form-input" rows={4} value={constraints} onChange={(e) => setConstraints(e.target.value)} placeholder='{"max_hours_per_member": 40}' />
             </div>
             <div className="form-group">
               <label className="form-label">Priorities (JSON or free text)</label>
-              <textarea className="form-input" rows={4} value={priorities} onChange={(e) => setPriorities(e.target.value)} placeholder='{"project_1": "highest"}' />
+              <textarea data-ai-field={"priorities"} className="form-input" rows={4} value={priorities} onChange={(e) => setPriorities(e.target.value)} placeholder='{"project_1": "highest"}' />
             </div>
           </div>
           <button
@@ -135,73 +139,7 @@ export default function CrossTeamOptimize() {
         )}
       </div>
 
-      {parsed && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-          <div className="data-table-container" style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Reallocations ({realloc.length})</h3>
-            {realloc.length === 0 ? (
-              <div style={{ color: '#64748b', fontSize: 13 }}>No reallocations recommended.</div>
-            ) : (
-              <ul style={{ paddingLeft: 18, margin: 0 }}>
-                {realloc.map((r, i) => (
-                  <li key={i} style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 8 }}>
-                    Member {r.member_id}: {r.from_project_id} → {r.to_project_id} ({r.hours_per_week}h/wk) — {r.rationale}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="data-table-container" style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Task Reassignments ({reassign.length})</h3>
-            {reassign.length === 0 ? (
-              <div style={{ color: '#64748b', fontSize: 13 }}>No reassignments recommended.</div>
-            ) : (
-              <ul style={{ paddingLeft: 18, margin: 0 }}>
-                {reassign.map((r, i) => (
-                  <li key={i} style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 8 }}>
-                    Task {r.task_id} → Member {r.new_assignee_id} [{r.confidence}]: {r.rationale}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="data-table-container" style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#86efac' }}>Underutilised</h3>
-            <ul style={{ paddingLeft: 18, margin: 0 }}>
-              {under.map((m, i) => (
-                <li key={i} style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 4 }}>Member {m.member_id}: {m.free_hours}h free</li>
-              ))}
-              {under.length === 0 && <li style={{ color: '#64748b', fontSize: 13 }}>None</li>}
-            </ul>
-          </div>
-          <div className="data-table-container" style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#fca5a5' }}>Overloaded</h3>
-            <ul style={{ paddingLeft: 18, margin: 0 }}>
-              {over.map((m, i) => (
-                <li key={i} style={{ color: '#fca5a5', fontSize: 13, marginBottom: 4 }}>Member {m.member_id}: {m.overload_hours}h overload</li>
-              ))}
-              {over.length === 0 && <li style={{ color: '#64748b', fontSize: 13 }}>None</li>}
-            </ul>
-          </div>
-          {parsed.expected_throughput_lift_pct != null && (
-            <div className="data-table-container" style={{ padding: 24, gridColumn: 'span 2' }}>
-              <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>Expected Throughput Lift</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#86efac' }}>+{parsed.expected_throughput_lift_pct}%</div>
-              {parsed.summary && <p style={{ color: '#cbd5e1', fontSize: 13, marginTop: 12 }}>{parsed.summary}</p>}
-              {warnings.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 12, color: '#fbbf24', textTransform: 'uppercase', marginBottom: 6 }}>Warnings</div>
-                  <ul style={{ paddingLeft: 18, margin: 0 }}>
-                    {warnings.map((w, i) => (
-                      <li key={i} style={{ color: '#fde68a', fontSize: 13 }}>{w}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      {result && <FormattedAIReport response={result} />}
+    </div></NativeAIControls>
   );
 }

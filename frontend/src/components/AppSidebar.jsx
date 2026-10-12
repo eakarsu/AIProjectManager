@@ -26,6 +26,8 @@ const LINKS = [
   { to: '/standup-summary', label: 'Standup Summary', group: 'Workspace' },
   { to: '/estimate-timeline', label: 'Estimate Timeline', group: 'Workspace' },
   { to: '/smart-assign', label: 'Smart Assign', group: 'Workspace' },
+  { to: '/sentiment-sprint-review', label: 'Sprint Sentiment Review', group: 'Workspace' },
+  { to: '/cross-team-optimize', label: 'Cross-Team Resource Optimizer', group: 'Workspace' },
   { to: '/custom-views', label: 'Custom Views', group: 'Workspace' },
   { to: '/cf-agentic-sprint-planner', label: 'Cf Agentic Sprint Planner', group: 'Workspace' },
   { to: '/cf-realtime-burndown-streaming', label: 'Cf Realtime Burndown Streaming', group: 'Workspace' },

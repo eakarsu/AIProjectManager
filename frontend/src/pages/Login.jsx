@@ -1,6 +1,10 @@
+import { useRef as useDemoLoginRef, useState as useDemoLoginState } from 'react';
 import React, { useState } from 'react';
 
 export default function Login({ onLogin }) {
+  const demoLoginLock = useDemoLoginRef(false);
+  const [demoLoginBusy, setDemoLoginBusy] = useDemoLoginState(false);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -32,9 +36,9 @@ export default function Login({ onLogin }) {
     setPassword(demoPassword);
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, demoLoginCredentials) => {
     e.preventDefault();
-    doLogin(email, password);
+    await doLogin((demoLoginCredentials?.email ?? email), (demoLoginCredentials?.password ?? password));
   };
 
   return (
@@ -78,14 +82,29 @@ export default function Login({ onLogin }) {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
 
-          <button type="button" className="btn btn-secondary" onClick={handleAutoFill} style={{ width: '100%', justifyContent: 'center' }}>
-            Auto Fill Demo Credentials
+          <button disabled={demoLoginBusy} type="button" className="btn btn-secondary" onClick={async (event) => {
+ if (demoLoginLock.current) return;
+ demoLoginLock.current = true; setDemoLoginBusy(true);
+ const values = {};
+ const captureDemoValue = (key, value) => { values[key] = value; return value; };
+ try {
+  await (async () => {
+    const demoEmail = import.meta.env.VITE_DEMO_EMAIL || '';
+    const demoPassword = import.meta.env.VITE_DEMO_PASSWORD || '';
+    setEmail(captureDemoValue("email", demoEmail));
+    setPassword(captureDemoValue("password", demoPassword));
+  })(event);
+  if (values.error || typeof values.email !== 'string' || !values.email || typeof values.password !== 'string' || !values.password) { setError(typeof values.error === 'string' ? values.error : 'Demo credentials are unavailable.'); return; }
+  await handleSubmit(event, { email: values.email, password: values.password });
+ } finally { demoLoginLock.current = false; setDemoLoginBusy(false); }
+}} style={{ width: '100%', justifyContent: 'center' }}>
+            Log In as Demo
           </button>
         </form>
 
         <div style={{ marginTop: '24px', textAlign: 'center' }}>
           <p style={{ fontSize: '12px', color: '#64748b' }}>
-            Demo: admin@aipm.com / password123
+            Use the configured local demo account.
           </p>
         </div>
       </div>

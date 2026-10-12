@@ -1,3 +1,5 @@
+import FormattedAIReport, { reportText, reportValue } from '../components/FormattedAIReport';
+import NativeAIControls from '../components/NativeAIControls.jsx';
 import React, { useState, useEffect } from 'react';
 import { FiMessageCircle, FiRefreshCw, FiCopy, FiCheck } from 'react-icons/fi';
 
@@ -41,6 +43,8 @@ export default function StandupSummary() {
     );
   };
 
+  const presets = ['Planning example', 'Delivery example', 'Review example'].map((name, index) => ({ name, fill: () => { setSelectedProject(value => value || String(projects[index % Math.max(projects.length, 1)]?.id || '')); setDate(new Date(Date.now() + index * 86400000).toISOString().slice(0, 10)); setUseManual(true); setManualStandups(['Fictional example: Alex completed dashboard tests yesterday, plans accessibility review today, and needs design feedback. Sam reviewed requirements and plans API documentation, with no reported blocker.', 'Fictional example: Morgan reviewed release notes yesterday and plans integration testing today. Casey drafted migration steps and needs confirmation of the maintenance window.', 'Fictional example: Jordan fixed validation messages yesterday and plans regression checks today. Taylor reviewed support tickets and needs product owner prioritization.'][index]); return { filled: 4, manual: projects.length ? [] : ['an existing project when linking this example'] }; } }));
+
   const generate = async () => {
     setLoading(true);
     setResult('');
@@ -61,13 +65,13 @@ export default function StandupSummary() {
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(result);
+    navigator.clipboard.writeText(reportText(reportValue(result)));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div>
+    <NativeAIControls busy={loading} context="ProjectManager" presets={presets}><div>
       <div className="page-header">
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -195,7 +199,7 @@ export default function StandupSummary() {
               Generating AI standup summary...
             </div>
           ) : result ? (
-            <div style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 14, lineHeight: 1.7 }}>{result}</div>
+            <FormattedAIReport response={result} title="Standup summary" />
           ) : (
             <div style={{ color: '#64748b', fontSize: 14, lineHeight: 1.7 }}>
               Configure options on the left and click "Generate Standup Summary" to create an AI-powered daily standup report.
@@ -203,6 +207,6 @@ export default function StandupSummary() {
           )}
         </div>
       </div>
-    </div>
+    </div></NativeAIControls>
   );
 }
