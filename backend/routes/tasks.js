@@ -9,7 +9,13 @@ router.get('/', async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    // If no pagination params, return all for backward compat
+    // FP42C search/filter on the main task list (preserves backward-compat shape)
+    const search = String(req.query.search || req.query.q || '').trim();
+    const status = String(req.query.status || '').trim();
+    const priority = String(req.query.priority || '').trim();
+    const projectId = String(req.query.project_id || '').trim();
+    const where = "WHERE ($1='' OR t.title ILIKE '%'||$1||'%' OR t.description ILIKE '%'||$1||'%') AND ($2='' OR t.status=$2) AND ($3='' OR t.priority=$3) AND ($4='' OR t.project_id::text=$4)";
+    const filterParams = [search, status, priority, projectId];
     if (!req.query.page && !req.query.limit) {
       const result = await pool.query(`
         SELECT t.*, u.name as assignee_name, p.name as project_name, s.name as sprint_name
@@ -17,8 +23,9 @@ router.get('/', async (req, res) => {
         LEFT JOIN users u ON t.assignee_id = u.id
         LEFT JOIN projects p ON t.project_id = p.id
         LEFT JOIN sprints s ON t.sprint_id = s.id
+        ${where}
         ORDER BY t.created_at DESC
-      `);
+      `, filterParams);
       return res.json(result.rows);
     }
 
@@ -28,11 +35,12 @@ router.get('/', async (req, res) => {
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN sprints s ON t.sprint_id = s.id
+      ${where}
       ORDER BY t.created_at DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+      LIMIT $5 OFFSET $6
+    `, [...filterParams, limit, offset]);
 
-    const countResult = await pool.query('SELECT COUNT(*) FROM tasks');
+    const countResult = await pool.query(`SELECT COUNT(*) FROM tasks t ${where}`, filterParams);
 
     res.json({
       data: result.rows,

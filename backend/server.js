@@ -70,6 +70,7 @@ app.use(/^\/api\/projects\/\d+\/ai-/, aiRateLimiter);
 // Protected routes
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/feature-pack', require('./routes/featurePack')(null, { loadRecords: async (req) => { const r = await req.app.locals.pool.query('SELECT * FROM tasks ORDER BY id DESC'); return r.rows; } }));
 app.use('/api/sprints', require('./routes/sprints'));
 app.use('/api/risks', require('./routes/risks'));
 app.use('/api/standups', require('./routes/standups'));
